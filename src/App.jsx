@@ -61,31 +61,200 @@ function calculateTEWS({ respRate, pulse, sbp, temp, gcs, mobility, spo2 }) {
   return { score, missing };
 }
 
+const RED_DISCRIMINATORS = [
+  "cardiac arrest", "airway compromise", "active seizure",
+  "unconscious", "shock", "major trauma",
+  "uncontrolled bleeding", "severe head injury",
+  "respiratory arrest", "anaphylaxis",
+];
+
+const ORANGE_DISCRIMINATORS = [
+  "chest pain", "shortness of breath", "severe pain",
+  "stroke", "seizure", "obstetric emergency",
+  "moderate respiratory distress", "severe trauma",
+  "burns", "altered consciousness", "severe allergic reaction",
+];
+
 function getSATSColour(tews, complaint) {
   const c = complaint.toLowerCase();
-  const redConditions = ["cardiac arrest", "uncontrolled bleeding", "severe head injury", "unconscious"];
-  const orangeConditions = ["chest pain", "shortness of breath", "stroke", "seizure", "severe trauma", "burns"];
   const discriminators = [];
 
-  if (redConditions.some((x) => c.includes(x)) || tews >= 7) {
-    if (redConditions.some((x) => c.includes(x))) discriminators.push("Clinical Red Discriminator");
+  const redKeywords = [
+    // Cardiac
+    "cardiac arrest", "heart stopped", "no pulse", "pulseless",
+    // Airway
+    "airway compromise", "airway obstruction", "airway blocked",
+    "choking", "cannot breathe", "not breathing", "apnea", "apnoea",
+    // Seizure
+    "active seizure", "fitting", "convulsion", "convulsing",
+    "status epilepticus",
+    // Consciousness
+    "unconscious", "unresponsive", "not responding", "collapsed",
+    "found down", "gcs < 8", "gcs less than 8",
+    // Bleeding
+    "uncontrolled bleeding", "massive haemorrhage", "massive hemorrhage",
+    "exsanguinating", "torrential bleeding",
+    // Shock
+    "shock", "hypotensive", "bp unrecordable", "no blood pressure",
+    // Trauma
+    "major trauma", "severe head injury", "head injury with unconscious",
+    "penetrating chest", "penetrating abdomen",
+    // Breathing
+    "respiratory arrest", "stopped breathing", "respiratory failure",
+    // Allergy
+    "anaphylaxis", "anaphylactic", "severe allergic", "throat swelling",
+    "tongue swelling", "lip swelling",
+  ];
+
+  const orangeKeywords = [
+    // Chest
+    "chest pain", "chest tightness", "chest pressure", "heart attack",
+    "mi ", "myocardial", "angina",
+    // Breathing
+    "shortness of breath", "difficulty breathing", "breathlessness",
+    "respiratory distress", "wheezing badly", "severe wheeze",
+    "cant breathe", "can't breathe",
+    // Neuro
+    "stroke", "facial droop", "arm weakness", "sudden weakness",
+    "sudden numbness", "slurred speech", "sudden confusion",
+    "altered consciousness", "altered mental", "decreased gcs",
+    // Seizure (post)
+    "seizure", "post ictal", "postictal", "just had a fit",
+    // Pain
+    "severe pain", "10/10 pain", "worst pain", "excruciating",
+    "unbearable pain",
+    // Breathing
+    "moderate respiratory", "increasing breathlessness",
+    // Obstetric
+    "obstetric emergency", "eclampsia", "pre-eclampsia", "preeclampsia",
+    "fetal distress", "cord prolapse", "placenta praevia",
+    "postpartum haemorrhage", "pph",
+    // Trauma
+    "severe trauma", "high speed", "ejected from vehicle",
+    "fall from height",
+    // Burns
+    "burns", "burn injury", "scalded", "chemical burn",
+    // Allergy
+    "allergic reaction", "hives with breathing", "urticaria with swelling",
+  ];
+
+  // Check RED first
+  const redHit = redKeywords.filter((d) => c.includes(d));
+  if (redHit.length > 0) {
+    redHit.forEach((d) => discriminators.push(`🔴 ${d}`));
     return { colour: "RED", discriminators };
   }
-  if (orangeConditions.some((x) => c.includes(x)) || tews >= 5) {
-    if (orangeConditions.some((x) => c.includes(x))) discriminators.push("Clinical Orange Discriminator");
+
+  // Check ORANGE second
+  const orangeHit = orangeKeywords.filter((d) => c.includes(d));
+  if (orangeHit.length > 0) {
+    orangeHit.forEach((d) => discriminators.push(`🟠 ${d}`));
     return { colour: "ORANGE", discriminators };
   }
-  if (tews >= 3) return { colour: "YELLOW", discriminators };
-  return { colour: "GREEN", discriminators };
-}
 
+  // Fall back to TEWS
+  if (tews >= 7) return { colour: "RED",    discriminators: [] };
+  if (tews >= 5) return { colour: "ORANGE", discriminators: [] };
+  if (tews >= 3) return { colour: "YELLOW", discriminators: [] };
+  return           { colour: "GREEN",  discriminators: [] };
+}
 function getDepartment(complaint, sex) {
   const c = complaint.toLowerCase();
-  if (["abdominal", "epigastric", "intestinal", "fracture", "trauma", "injury", "wound"].some((x) => c.includes(x))) return "Surgery";
-  if (["pregnancy", "delivery", "labour", "miscarriage"].some((x) => c.includes(x)) || (sex === "female" && c.includes("vaginal bleeding"))) return "OB/GYN";
-  if (["coma", "severe head injury", "critical", "respiratory failure"].some((x) => c.includes(x))) return "ICU";
-  if (["chest", "heart", "shortness of breath", "stroke", "seizure", "epilepsy", "diabetes"].some((x) => c.includes(x))) return "Medicine";
-  return "General Medicine";
+  // OB/GYN
+  if (["pregnancy", "labour", "labor", "miscarriage", "obstetric",
+       "vaginal bleeding", "vaginal discharge", "pelvic pain",
+       "postpartum", "eclampsia", "pre-eclampsia", "ectopic",
+       "preterm", "fetal distress", "dysmenorrhea", "ovarian",
+       "gynecological", "torsion", "pelvic infection",
+  ].some((x) => c.includes(x)) ||
+      (sex === "female" && ["pelvic", "vaginal"].some((x) => c.includes(x))))
+    return "OB/GYN";
+
+  // ICU
+  if (["shock", "respiratory failure", "mechanical ventilation",
+       "septic shock", "severe sepsis", "multiple organ",
+       "cardiac arrest", "unstable arrhythmia", "severe trauma",
+       "severe burns", "inhalation injury", "respiratory arrest",
+       "airway compromise", "poisoning", "drug overdose",
+       "alcohol intoxication", "unknown substance", "coma",
+  ].some((x) => c.includes(x)))
+    return "ICU";
+
+  // Surgery
+  if (["acute abdomen", "peritonitis", "appendicitis", "bowel obstruction",
+       "perforated", "hernia", "gallbladder", "cholecystitis", "cholangitis",
+       "abdominal bleeding", "ruptured aneurysm", "necrotizing",
+       "soft tissue infection", "fracture", "trauma", "injury",
+       "wound", "laceration", "stab wound", "gunshot",
+       "road traffic", "fall injury", "abscess",
+       "vomiting blood", "coughing blood", "bloody diarrhoea",
+       "head injury", "burn", "sports injury", "infected wound",
+       "animal bite", "dog bite", "snake bite",
+  ].some((x) => c.includes(x)))
+    return "Surgery";
+
+  // Internal Medicine
+  if (["sepsis", "pneumonia", "meningitis", "hypertension",
+       "hypertensive", "diabetic", "diabetes", "dka", "hhs",
+       "heart failure", "arrhythmia", "chest pain", "chest tightness",
+       "palpitations", "electrolyte", "renal failure", "copd",
+       "asthma", "cirrhosis", "fever", "high temperature", "chills",
+       "night sweats", "weight loss", "fatigue", "generalised weakness",
+       "high blood sugar", "low blood sugar", "stroke", "seizure",
+       "confusion", "weakness", "numbness", "slurred speech",
+       "memory loss", "difficulty breathing", "wheezing",
+       "noisy breathing", "cough", "nausea", "vomiting",
+       "diarrhoea", "constipation", "bloating", "jaundice",
+       "loss of appetite", "allergic reaction", "dizziness",
+       "fainting", "headache", "migraine",
+  ].some((x) => c.includes(x)))
+    return "Medicine";
+
+  // Orthopaedics
+  if (["fracture", "dislocation", "musculoskeletal", "open fracture",
+       "compartment syndrome", "back pain", "neck stiffness",
+       "joint pain", "shoulder pain", "knee pain", "hip pain",
+       "foot pain", "muscle pain", "osteomyelitis", "septic joint",
+       "limb ischemia", "swollen limb", "neck pain",
+  ].some((x) => c.includes(x)))
+    return "Orthopaedics";
+
+  // ENT
+  if (["epistaxis", "nosebleed", "deep neck", "ludwig",
+       "foreign body", "ear pain", "hearing loss", "sore throat",
+       "facial swelling", "neck swelling", "toothache", "dental pain",
+       "sudden hearing loss", "vertigo", "facial trauma",
+       "sinuses", "orbit", "jaw",
+  ].some((x) => c.includes(x)))
+    return "ENT";
+
+  // Ophthalmology
+  if (["vision loss", "eye trauma", "globe rupture", "glaucoma",
+       "retinal detachment", "floaters", "flashes", "corneal ulcer",
+       "chemical burn to eye", "eye pain", "eye redness",
+       "blurred vision", "eye injury", "photophobia",
+  ].some((x) => c.includes(x)))
+    return "Ophthalmology";
+
+  // Dermatology
+  if (["skin rash", "itching", "impetigo", "cellulitis",
+       "skin lesion", "eczema", "psoriasis", "dermatitis",
+       "stevens-johnson", "drug reaction", "chronic ulcer",
+       "non-healing wound", "insect bite", "swelling",
+  ].some((x) => c.includes(x)))
+    return "Dermatology";
+
+  // Urology
+  if (["urinary retention", "hematuria", "blood in urine",
+       "flank pain", "kidney stone", "testicular", "torsion",
+       "prostatitis", "urinary obstruction", "hydronephrosis",
+       "urinary tract", "urinary pain", "frequent urination",
+       "unable to urinate", "penile discharge", "scrotal pain",
+  ].some((x) => c.includes(x)))
+    return "Urology";
+
+  // Default
+  return "Medicine";
 }
 
 // ============================================================
@@ -249,16 +418,53 @@ function TriageCard({ patient, onSelect, compact = false }) {
 // ============================================================
 // VITALS ENTRY FORM
 // ============================================================
-const EMPTY_FORM = {
-  name: "", age: "", sex: "female", complaint: "",
-  respRate: "", pulse: "", sbp: "", temp: "", gcs: "", mobility: "walking", spo2: ""
-};
+const EMPTY_FORM = { name: "", age: "", sex: "female", complaints: [], customComplaint: "", respRate: "", pulse: "", sbp: "", temp: "", gcs: "", mobility: "walking", spo2: "" };
 
 const COMMON_COMPLAINTS = [
-  "Chest Pain", "Shortness of Breath", "Abdominal Pain", "Trauma/Injury",
-  "Seizure", "Stroke", "Burns", "Fever", "Cardiac Arrest", "Headache",
-  "Unconscious", "Fracture", "Vaginal Bleeding", "Pregnancy/Labour",
-  "Diabetic Emergency", "Severe Trauma"
+  // Head & Neuro
+  "Headache", "Migraine", "Dizziness", "Fainting", "Confusion",
+  "Weakness", "Numbness", "Memory Loss", "Slurred Speech",
+
+  // Eyes / Ears / Nose / Throat
+  "Eye Pain", "Eye Redness", "Blurred Vision", "Ear Pain",
+  "Hearing Loss", "Nosebleed", "Sore Throat", "Toothache",
+  "Dental Pain", "Facial Swelling", "Neck Pain", "Neck Swelling",
+
+  // Chest & Heart
+  "Chest Tightness", "Palpitations", "Cough", "Coughing Blood",
+  "Difficulty Breathing", "Wheezing", "Noisy Breathing",
+
+  // Abdomen & Digestion
+  "Abdominal Pain", "Epigastric Pain", "Nausea", "Vomiting",
+  "Vomiting Blood", "Diarrhoea", "Bloody Diarrhoea", "Constipation",
+  "Bloating", "Jaundice", "Loss of Appetite",
+
+  // Urinary & Reproductive
+  "Urinary Pain", "Frequent Urination", "Blood in Urine",
+  "Unable to Urinate", "Vaginal Bleeding", "Pelvic Pain",
+  "Vaginal Discharge", "Penile Discharge", "Scrotal Pain",
+  "Pregnancy/Labour", "Obstetric Emergency", "Miscarriage",
+
+  // Musculoskeletal
+  "Back Pain", "Joint Pain", "Fracture", "Shoulder Pain",
+  "Knee Pain", "Hip Pain", "Foot Pain", "Swollen Limb",
+  "Muscle Pain", "Neck Stiffness",
+
+  // Skin & Wounds
+  "Skin Rash", "Itching", "Wound", "Laceration", "Burn",
+  "Insect Bite", "Animal Bite", "Dog Bite", "Snake Bite",
+  "Swelling", "Abscess", "Infected Wound",
+
+  // Trauma & Injury
+  "Trauma/Injury", "Road Traffic Accident", "Fall Injury",
+  "Head Injury", "Stab Wound", "Gunshot Wound", "Sports Injury",
+
+  // General & Systemic
+  "Fever", "High Temperature", "Chills", "Night Sweats",
+  "Weight Loss", "Fatigue", "Generalised Weakness",
+  "Diabetic Emergency", "High Blood Sugar", "Low Blood Sugar",
+  "Hypertensive Emergency", "Allergic Reaction", "Poisoning",
+  "Drug Overdose", "Alcohol Intoxication", "Unknown Substance",
 ];
 
 function VitalsForm({ onSubmit }) {
@@ -276,7 +482,7 @@ function VitalsForm({ onSubmit }) {
         respRate: form.respRate, pulse: form.pulse, sbp: form.sbp,
         temp: form.temp, gcs: form.gcs, mobility: form.mobility, spo2: form.spo2
       });
-      const { colour } = getSATSColour(score, form.complaint);
+      const { colour } = getSATSColour(score, form.complaints.join(", "));
       setLiveScore(score);
       setLiveColour(colour);
     } else {
@@ -288,17 +494,15 @@ function VitalsForm({ onSubmit }) {
   const cfg = liveColour ? COLOUR_CONFIG[liveColour] : null;
 
   const handleSubmit = () => {
-    if (!form.name || !form.complaint) return;
+    if (!form.name || form.complaints.length === 0) return;
     const { score, missing } = calculateTEWS({
       respRate: form.respRate, pulse: form.pulse, sbp: form.sbp,
       temp: form.temp, gcs: form.gcs, mobility: form.mobility, spo2: form.spo2
     });
-    const { colour, discriminators } = getSATSColour(score, form.complaint);
-    const department = getDepartment(form.complaint, form.sex);
-    onSubmit({
-      id: Date.now(),
-      name: form.name, age: form.age, sex: form.sex,
-      complaint: form.complaint, tews: score,
+    const joinedComplaints = form.complaints.join(", ");
+    const { colour, discriminators } = getSATSColour(score, joinedComplaints);
+    const department = getDepartment(joinedComplaints, form.sex);
+    onSubmit({ id: Date.now(), name: form.name, age: form.age, sex: form.sex, complaint: joinedComplaints, tews: score,
       colour, department, discriminators,
       missingVitals: missing,
       arrivalTime: Date.now(),
@@ -367,21 +571,81 @@ function VitalsForm({ onSubmit }) {
 
       {/* Chief Complaint */}
       <div style={{ marginBottom: 16 }}>
-        <label style={labelStyle}>Chief Complaint</label>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 4, marginBottom: 6 }}>
-          {COMMON_COMPLAINTS.map((c) => (
-            <button key={c} onClick={() => update("complaint", c)} style={{
-              padding: "6px 10px", borderRadius: 20, border: `1px solid ${form.complaint === c ? "#00E5FF" : "#2D3748"}`,
-              background: form.complaint === c ? "#00E5FF22" : "#0D1B2A",
-              color: form.complaint === c ? "#00E5FF" : "#6B7A8D",
-              fontFamily: "'DM Sans', sans-serif", fontSize: 12, cursor: "pointer"
-            }}>{c}</button>
-          ))}
-        </div>
-        <input value={form.complaint} onChange={(e) => update("complaint", e.target.value)}
-          placeholder="Or type custom complaint..." style={inputStyle} />
-      </div>
+        <label style={labelStyle}>Chief Complaint — select all that apply</label>
 
+        {/* Selected complaints tags */}
+        {form.complaints.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8, marginTop: 4 }}>
+            {form.complaints.map((c) => (
+              <div key={c} style={{ display: "flex", alignItems: "center", gap: 4, background: "#00E5FF22", border: "1px solid #00E5FF", borderRadius: 20, padding: "4px 10px" }}>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#00E5FF" }}>{c}</span>
+                <button onClick={() => update("complaints", form.complaints.filter((x) => x !== c))} style={{ background: "none", border: "none", color: "#00E5FF", cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+              </div>
+            ))}
+            <button onClick={() => update("complaints", [])} style={{ padding: "4px 10px", borderRadius: 20, border: "1px solid #2D3748", background: "transparent", color: "#4A5568", fontFamily: "'DM Sans', sans-serif", fontSize: 11, cursor: "pointer" }}>Clear all</button>
+          </div>
+        )}
+
+        {/* Complaint buttons */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 4, marginBottom: 8 }}>
+          {COMMON_COMPLAINTS.map((c) => {
+            const selected = form.complaints.includes(c);
+            return (
+              <button key={c}
+                onClick={() => update("complaints", selected ? form.complaints.filter((x) => x !== c) : [...form.complaints, c])}
+                style={{ padding: "6px 10px", borderRadius: 20, border: `1px solid ${selected ? "#00E5FF" : "#2D3748"}`, background: selected ? "#00E5FF22" : "#0D1B2A", color: selected ? "#00E5FF" : "#6B7A8D", fontFamily: "'DM Sans', sans-serif", fontSize: 12, cursor: "pointer" }}>
+                {selected ? `✓ ${c}` : c}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Custom complaint input */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={form.customComplaint}
+            onChange={(e) => update("customComplaint", e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && form.customComplaint.trim()) {
+                update("complaints", [...form.complaints, form.customComplaint.trim()]);
+                update("customComplaint", "");
+              }
+            }}
+            placeholder="Type custom complaint and press Enter..."
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button
+            onClick={() => {
+              if (form.customComplaint.trim()) {
+                update("complaints", [...form.complaints, form.customComplaint.trim()]);
+                update("customComplaint", "");
+              }
+            }}
+            style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid #1E3A5A", background: "#0D1B2A", color: "#00E5FF", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer" }}>
+            + Add
+          </button>
+        </div>
+      </div>
+ <div style={{ background: "#0D1B2A", border: "1px solid #1E3A5A", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#4A6A8A", letterSpacing: 2, marginBottom: 10 }}>
+    ⚡ DISCRIMINATOR OVERRIDE NOTICE
+  </div>
+  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#6B7A8D", marginBottom: 10 }}>
+    The following complaints automatically override the TEWS score and assign triage colour directly — no vitals required.
+  </div>
+  <div style={{ marginBottom: 8 }}>
+    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#FF1E3A", letterSpacing: 1, marginBottom: 4 }}>🔴 IMMEDIATE RED — regardless of TEWS</div>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#8899AA" }}>
+      Cardiac Arrest · Airway Compromise · Active Seizure · Unconscious · Shock · Major Trauma · Uncontrolled Bleeding · Severe Head Injury · Respiratory Arrest · Anaphylaxis
+    </div>
+  </div>
+  <div>
+    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#FF7A1A", letterSpacing: 1, marginBottom: 4 }}>🟠 VERY URGENT ORANGE — unless Red present</div>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: "#8899AA" }}>
+      Chest Pain · Shortness of Breath · Severe Pain · Stroke · Seizure · Obstetric Emergency · Respiratory Distress · Severe Trauma · Burns · Altered Consciousness
+    </div>
+  </div>
+</div>
       <div style={{ height: 1, background: "#1E3A5A", margin: "20px 0" }} />
 
       {/* Vitals Grid */}
