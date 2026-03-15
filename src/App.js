@@ -896,6 +896,12 @@ export default function AfiaTriage() {
     const t = setInterval(() => setTick((x) => x + 1), 30000);
     return () => clearInterval(t);
   }, []);
+  
+  useEffect(() => {
+  const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
+  window.addEventListener("beforeunload", warn);
+  return () => window.removeEventListener("beforeunload", warn);
+}, []);
 
   const addPatient = (p) => {
     setPatients((prev) => [...prev, p]);
