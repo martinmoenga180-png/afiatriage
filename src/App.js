@@ -875,7 +875,7 @@ const SEED_PATIENTS = [
   },
   {
     id: 1004, name: "Mercy Atieno", age: 34, sex: "female", complaint: "Abdominal pain",
-    tews: 3, colour: "YELLOW", department: "Kamau",
+    tews: 3, colour: "YELLOW", department: "Medicine",
     discriminators: [], missingVitals: [],
     arrivalTime: Date.now() - 45 * 60000,
     vitals: { respRate: 16, pulse: 95, sbp: 115, temp: 38.6, gcs: 15, mobility: "with_help", spo2: 96 }
