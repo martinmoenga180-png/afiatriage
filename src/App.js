@@ -867,7 +867,7 @@ const SEED_PATIENTS = [
     vitals: { respRate: 18, pulse: 88, sbp: 120, temp: 37.0, gcs: 15, mobility: "walking", spo2: 98 }
   },
   {
-    id: 1003, name: "John Kamau", age: 62, sex: "male", complaint: "Unconscious patient",
+    id: 1003, name: "Moenga Martin", age: 22, sex: "male", complaint: "Unconscious patient",
     tews: 9, colour: "RED", department: "ICU",
     discriminators: ["Clinical Red Discriminator"], missingVitals: [],
     arrivalTime: Date.now() - 2 * 60000,
@@ -875,7 +875,7 @@ const SEED_PATIENTS = [
   },
   {
     id: 1004, name: "Mercy Atieno", age: 34, sex: "female", complaint: "Abdominal pain",
-    tews: 3, colour: "YELLOW", department: "Surgery",
+    tews: 3, colour: "YELLOW", department: "Kamau",
     discriminators: [], missingVitals: [],
     arrivalTime: Date.now() - 45 * 60000,
     vitals: { respRate: 16, pulse: 95, sbp: 115, temp: 38.6, gcs: 15, mobility: "with_help", spo2: 96 }
@@ -898,10 +898,10 @@ export default function AfiaTriage() {
   }, []);
   
   useEffect(() => {
-  const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
-  window.addEventListener("beforeunload", warn);
-  return () => window.removeEventListener("beforeunload", warn);
-}, []);
+     const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
+     window.addEventListener("beforeunload", warn);
+     return () => window.removeEventListener("beforeunload", warn);
+  }, []);
 
   const addPatient = (p) => {
     setPatients((prev) => [...prev, p]);
