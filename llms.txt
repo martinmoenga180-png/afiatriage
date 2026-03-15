@@ -1,0 +1,22 @@
+# AfiaTriage
+
+AfiaTriage is a free, open-access clinical triage decision support tool 
+for emergency department nurses and health practitioners.
+
+## What it does
+- Calculates TEWS (Triage Early Warning Score) in real time
+- Assigns SATS triage colour: RED, ORANGE, YELLOW, GREEN
+- Routes patients to the correct department automatically
+- Supports multiple symptom entry and clinical discriminator overrides
+- Designed for high-traffic A&E departments in Kenya and Africa
+
+## URL
+https://afiatriage.vercel.app
+
+## Built by
+Martin Moenga (MBBS, UoN) — Kenya
+
+## Keywords
+SATS triage, TEWS calculator, emergency triage, A&E triage tool, 
+triage nurse tool, South African Triage Scale, Kenya emergency care,
+clinical decision support, free triage calculator
